@@ -237,10 +237,30 @@ footer { text-align:center; font-size:11px; color:var(--text3); padding:2rem 0 1
   .cmp-cols { grid-template-columns:1fr; }
   .topbar .brand small { display:none; }
 }
+/* ── 자리 바꾸기 모드 ── */
+.swap-on .lc:not(.emp), .swap-on .is { cursor:pointer; }
+.swap-on .lc:not(.emp):hover, .swap-on .is:hover { box-shadow:0 0 0 2px var(--blue); }
+.lc.swap-sel, .is.swap-sel { box-shadow:0 0 0 3px var(--amber) !important; background:var(--amber-bg) !important; }
+.swap-banner { display:none; align-items:center; gap:10px; padding:8px 14px; border-radius:var(--r); background:var(--amber-bg); border:1px solid #FDE68A; font-size:13px; color:#92400E; margin-bottom:10px; }
+.swap-banner.open { display:flex; }
+.gname-btn { cursor:pointer; border-bottom:1px dashed var(--border2); }
+.gname-btn:hover { color:var(--blue); border-color:var(--blue); }
+.gname-inputs { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:6px; }
+.gname-inputs input { font-size:13px; padding:6px 10px; }
+#print-hd { display:none; }
+
 @media print {
-  .np, .topbar, footer, .pills { display:none !important; }
+  @page { size:A4 landscape; margin:10mm; }
+  .np, .topbar, footer, .pills, .swap-banner, #bal-card, .modal, .shuffle-overlay, .toast { display:none !important; }
   body { background:#fff; }
-  .card { border:none; padding:0; }
+  .app { max-width:none; padding:0; }
+  .card { border:none; padding:0; margin-bottom:8mm; break-inside:avoid; }
+  #print-hd { display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #1E3A5F; padding-bottom:4mm; margin-bottom:5mm; }
+  #print-hd .t { font-size:18pt; font-weight:800; }
+  #print-hd .s { font-size:10pt; color:#64748B; }
+  .lc, .is, .sv-cell { break-inside:avoid; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .lv, .spec-badge, .nb, .lvc, .dot { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .board { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 }
 </style>
 </head>
@@ -354,7 +374,7 @@ footer { text-align:center; font-size:11px; color:var(--text3); padding:2rem 0 1
   <div class="card">
     <div class="ct">📐 모둠 크기</div>
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <select id="osize" style="width:120px" onchange="saveOptions();updPrev()">
+      <select id="osize" style="width:120px" onchange="saveOptions();updPrev();renderGroupNameInputs()">
         <option value="3">3명</option>
         <option value="4" selected>4명</option>
         <option value="5">5명</option>
@@ -362,6 +382,14 @@ footer { text-align:center; font-size:11px; color:var(--text3); padding:2rem 0 1
       </select>
       <div id="gprev" class="muted" style="padding:8px 12px;background:var(--bg);border-radius:8px"></div>
     </div>
+  </div>
+  <div class="card">
+    <div class="ct" style="justify-content:space-between">
+      <span>🏷️ 모둠 이름 (선택)</span>
+      <button class="btn sm" onclick="clearGroupNames()">기본으로</button>
+    </div>
+    <div class="hint">비워두면 1모둠, 2모둠… 으로 표시돼요. 결과 화면에서 모둠 이름을 클릭해도 바꿀 수 있어요.</div>
+    <div class="gname-inputs" id="gname-inputs"></div>
   </div>
   <div class="card">
     <div class="ct">🚫 같은 모둠 금지 설정</div>
@@ -482,14 +510,20 @@ footer { text-align:center; font-size:11px; color:var(--text3); padding:2rem 0 1
       </div>
       <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn sm" onclick="togView()">보기 전환</button>
+        <button class="btn sm" id="swap-btn" onclick="toggleSwap()">✋ 자리 바꾸기</button>
         <button class="btn sm" onclick="reGen()">🔄 다시 배정</button>
         <button class="btn sm" onclick="showCmpView()">🔀 이전과 비교</button>
         <button class="btn sm" onclick="showStudentView()">👨‍🎓 학생 화면</button>
-        <button class="btn sm bp" onclick="saveRes()">💾 결과 저장</button>
+        <button class="btn sm bp" id="save-btn" onclick="saveRes()">💾 결과 저장</button>
         <button class="btn sm" onclick="window.print()">🖨️ 인쇄</button>
       </div>
     </div>
   </div>
+  <div class="swap-banner" id="swap-banner">
+    <span>✋ <strong>자리 바꾸기 모드</strong> — 자리표에서 학생 두 명을 차례로 클릭하면 자리가 맞바뀌어요. 모둠 목록·균형 분석도 함께 바뀝니다.</span>
+    <button class="btn sm" style="margin-left:auto" onclick="toggleSwap()">완료</button>
+  </div>
+  <div id="print-hd"><span class="t" id="print-title"></span><span class="s" id="print-sub"></span></div>
   <div id="vgrid">
     <div class="card">
       <div class="board">📋 칠판</div>
@@ -506,7 +540,7 @@ footer { text-align:center; font-size:11px; color:var(--text3); padding:2rem 0 1
     <div class="ct">📋 모둠 목록</div>
     <div id="glist"></div>
   </div>
-  <div class="card">
+  <div class="card" id="bal-card">
     <div class="ct" style="justify-content:space-between">
       <span>📊 모둠별 균형 분석</span>
       <span id="bal-overall" style="font-size:12px"></span>
@@ -631,8 +665,24 @@ function defaultClass(name) {
     students: [], history: [],
     options: { size:4, useG:true, useL:true, useR:false, useH:true, memo:'' },
     forbidPairs: [], fixedSeats: [], savedTpls: [], reserves: [],
-    curTpl: 'grid', cGrid: { cols:5, rows:5, cells:[] }
+    curTpl: 'grid', cGrid: { cols:5, rows:5, cells:[] },
+    groupNames: []
   };
+}
+// 모둠 이름 (비어 있으면 N모둠)
+function gname(i) { var n=(C.groupNames||[])[i]; return (n&&n.trim()) ? n.trim() : (i+1)+'모둠'; }
+function renderGroupNameInputs() {
+  var el=document.getElementById('gname-inputs'); if (!el) return;
+  var gc=Math.max(1, Math.ceil((C.students.length||24)/(C.options.size||4))), h='';
+  for (var i=0;i<gc;i++) h+='<input type="text" maxlength="12" placeholder="'+(i+1)+'모둠" value="'+esc((C.groupNames||[])[i]||'')+'" oninput="setGroupName('+i+',this.value)">';
+  el.innerHTML=h;
+}
+function setGroupName(i, v) { if (!C.groupNames) C.groupNames=[]; C.groupNames[i]=v; save(); }
+function clearGroupNames() { C.groupNames=[]; save(); renderGroupNameInputs(); if (curResult) renderRes(); }
+function renameGroupPrompt(i) {
+  var v=prompt('모둠 이름 (비우면 '+(i+1)+'모둠)', (C.groupNames||[])[i]||'');
+  if (v===null) return;
+  setGroupName(i, v); renderRes(); showToast(gname(i)+' 으로 바꿨어요');
 }
 
 function loadDB() {
@@ -811,11 +861,12 @@ function renderPills(cur) {
 }
 function go(n) {
   if (n===4 && !curResult) { showToast('먼저 배정을 실행해 주세요.', true); return; }
+  if (n!==4 && swapMode) toggleSwap();
   for (var i=1;i<=4;i++) document.getElementById('p'+i).className = (i===n)?'page active':'page';
   renderPills(n);
-  if (n===2) { renderOptions(); renderPairSelects(); updPrev(); }
+  if (n===2) { renderOptions(); renderPairSelects(); updPrev(); renderGroupNameInputs(); }
   if (n===3) { renderTplCards(); renderCGrid(); renderSavedTpls(); renderFixedSeatSelect(); renderTPrev(); }
-  if (n===4) { renderHist(); renderReserves(); }
+  if (n===4) { renderHist(); renderReserves(); if (curResult) renderRes(true); }
   window.scrollTo(0,0);
 }
 
@@ -1309,6 +1360,7 @@ function generate() {
   }
   if (bestViol>0) showToast('금지 쌍 조건을 완전히 만족하기 어려워 최선의 결과로 배정했어요.');
   curResult={ groups:best.groups, seats:best.seats, layout:L, tpl:C.curTpl, size:opt.size, memo:opt.memo||'', date:new Date().toISOString(), saved:false };
+  if (swapMode) toggleSwap();
   runShuffleAnimation(function(){ go(4); renderRes(); });
 }
 function reGen() { generate(); }
@@ -1327,25 +1379,53 @@ function runShuffleAnimation(done) {
 // ──────────────────────────────────────────
 // 8. 결과 렌더링
 // ──────────────────────────────────────────
-function renderRes() {
+var swapMode=false, swapFirst=-1;
+function renderRes(keepView) {
   if (!curResult) return;
   var R=curResult;
-  document.getElementById('rinfo').textContent=R.groups.length+'모둠 · '+C.students.length+'명 · '+TPL_NAMES[R.tpl]+' · '+fmtDate(R.date,true);
+  document.getElementById('rinfo').textContent=R.groups.length+'모둠 · '+C.students.length+'명 · '+TPL_NAMES[R.tpl]+' · '+fmtDate(R.date,true)+(R.saved?'':' · 미저장');
   document.getElementById('rmemo').textContent=R.memo?'📝 '+R.memo:'';
+  document.getElementById('print-title').textContent='🏫 '+C.name+' 자리 배치표';
+  document.getElementById('print-sub').textContent=fmtDate(R.date)+(R.memo?' · '+R.memo:'')+' · 영쌤클래스';
+  document.getElementById('save-btn').className = R.saved ? 'btn sm' : 'btn sm bp';
   renderGridV(); renderIslandV(); renderGList(); renderBalAnalysis(R.groups);
-  curView = (R.layout.kind==='island') ? 'island' : 'grid';
+  if (!keepView) curView = (R.layout.kind==='island') ? 'island' : 'grid';
   applyView();
 }
-function isFixedId(id) { for (var i=0;i<C.fixedSeats.length;i++) if (C.fixedSeats[i].id===id) return true; return false; }
+// 고정 설정된 학생이 실제로 그 자리에 있을 때만 📌
+function isFixedAt(id, idx) { for (var i=0;i<C.fixedSeats.length;i++) if (C.fixedSeats[i].id===id && C.fixedSeats[i].seat===idx+1) return true; return false; }
 
 function seatCardHtml(s, idx, cls) {
   var g=curResult.layout.seats[idx].g;
-  var h='<div class="'+cls+' '+gcls(s)+'"><span class="seatno">'+(idx+1)+'</span><span class="lvc" style="background:var(--lv'+s.level+'-dot)"></span>';
-  h+='<div class="'+(cls==='lc'?'lcn':'isn')+'">'+(isFixedId(s.id)?'📌 ':'')+esc(s.name)+'</div>';
-  if (cls==='lc') h+='<div class="lcm">'+(g+1)+'모둠·'+(s.gender==='m'?'남':'여')+'</div>';
+  var sel = (swapMode && swapFirst===idx) ? ' swap-sel' : '';
+  var h='<div class="'+cls+' '+gcls(s)+sel+'" data-seat="'+idx+'" onclick="seatClick('+idx+')"><span class="seatno">'+(idx+1)+'</span><span class="lvc" style="background:var(--lv'+s.level+'-dot)"></span>';
+  h+='<div class="'+(cls==='lc'?'lcn':'isn')+'">'+(isFixedAt(s.id,idx)?'📌 ':'')+esc(s.name)+'</div>';
+  if (cls==='lc') h+='<div class="lcm">'+esc(gname(g))+'·'+(s.gender==='m'?'남':'여')+'</div>';
   h+=lvBadge(s.level)+specBadges(s,true);
   if (s.note) h+='<div class="lcno">★ '+esc(s.note)+'</div>';
   return h+'</div>';
+}
+
+// ── 수동 자리 바꾸기 ──
+function toggleSwap() {
+  swapMode=!swapMode; swapFirst=-1;
+  document.getElementById('swap-banner').className = swapMode ? 'swap-banner open' : 'swap-banner';
+  document.getElementById('swap-btn').className = swapMode ? 'btn sm bp' : 'btn sm';
+  document.getElementById('p4').className = 'page active' + (swapMode ? ' swap-on' : '');
+  if (curResult) renderRes(true);
+}
+function seatClick(idx) {
+  if (!swapMode || !curResult || !curResult.seats[idx]) return;
+  if (swapFirst===-1) { swapFirst=idx; renderRes(true); return; }
+  if (swapFirst===idx) { swapFirst=-1; renderRes(true); return; }
+  var R=curResult, a=R.seats[swapFirst], b=R.seats[idx];
+  R.seats[swapFirst]=b; R.seats[idx]=a;
+  // 모둠 목록을 자리 기준으로 다시 계산
+  var L=R.layout, groups=[]; for (var g=0;g<L.groupCount;g++) groups.push([]);
+  for (var i=0;i<R.seats.length;i++) if (R.seats[i]) groups[L.seats[i].g].push(R.seats[i]);
+  R.groups=groups; R.saved=false; swapFirst=-1;
+  renderRes(true);
+  showToast(a.name+' ↔ '+b.name+' 자리를 바꿨어요'+(C.forbidPairs.length&&violatesPair(groups)?' ⚠️ 금지 쌍이 같은 모둠이 됐어요':''), C.forbidPairs.length&&violatesPair(groups));
 }
 function renderGridV() {
   var R=curResult, L=R.layout, el=document.getElementById('rgrid');
@@ -1366,7 +1446,7 @@ function renderGridV() {
 function renderIslandV() {
   var R=curResult, L=R.layout, h='';
   for (var g=0;g<L.groupCount;g++) {
-    h+='<div class="ig"><div class="il">'+(g+1)+'모둠</div><div class="iseats">';
+    h+='<div class="ig"><div class="il"><span class="gname-btn" onclick="renameGroupPrompt('+g+')" title="클릭해서 이름 바꾸기">'+esc(gname(g))+'</span></div><div class="iseats">';
     for (var i=0;i<R.seats.length;i++) if (L.seats[i].g===g && R.seats[i]) h+=seatCardHtml(R.seats[i], i, 'is');
     h+='</div></div>';
   }
@@ -1375,7 +1455,7 @@ function renderIslandV() {
 function renderGList() {
   var groups=curResult.groups, h='';
   for (var i=0;i<groups.length;i++) {
-    h+='<div style="margin-bottom:12px"><div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:6px">'+(i+1)+'모둠 <span class="muted" style="font-weight:400">('+groups[i].length+'명)</span></div><div style="display:flex;gap:6px;flex-wrap:wrap">';
+    h+='<div style="margin-bottom:12px"><div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:6px"><span class="gname-btn" onclick="renameGroupPrompt('+i+')" title="클릭해서 이름 바꾸기">'+esc(gname(i))+'</span> <span class="muted" style="font-weight:400">('+groups[i].length+'명)</span></div><div style="display:flex;gap:6px;flex-wrap:wrap">';
     for (var j=0;j<groups[i].length;j++) {
       var s=groups[i][j];
       h+='<div style="display:inline-flex;flex-direction:column;gap:3px;padding:6px 10px;border-radius:10px;border:1px solid var(--border2);background:var(--white);min-width:70px">';
@@ -1405,7 +1485,7 @@ function renderBalAnalysis(groups) {
     var expF=ratioF*tot;
     if (tot>=3 && totM>0 && totF>0 && Math.abs(f-expF)>=1.5) { warn+='<div class="bal-warn">⚠️ 성별 쏠림</div>'; warnN++; }
     if (tot>=3 && (l[1]+l[2]===tot || l[3]+l[4]===tot) && C.options.useL && !C.options.useR) { warn+='<div class="bal-warn">⚠️ 수준 쏠림</div>'; warnN++; }
-    h+='<div class="bal-card"><div class="bal-title">'+(i+1)+'모둠 ('+g.length+'명)</div>';
+    h+='<div class="bal-card"><div class="bal-title">'+esc(gname(i))+' ('+g.length+'명)</div>';
     h+=bar('남',m,tot,'#3B82F6','#1E40AF')+bar('여',f,tot,'#EC4899','#9D174D');
     var cols=['','#EAB308','#22C55E','#3B82F6','#94A3B8'];
     for (var k=1;k<=4;k++) h+=bar(k+'순',l[k],tot,cols[k],'');
@@ -1425,7 +1505,7 @@ function showStudentView() {
   if (L.kind==='island') {
     h+='<div class="iwrap">';
     for (var g=0;g<L.groupCount;g++) {
-      h+='<div class="ig"><div class="il">'+(g+1)+'모둠</div><div class="iseats">';
+      h+='<div class="ig"><div class="il">'+esc(gname(g))+'</div><div class="iseats">';
       for (var i=0;i<R.seats.length;i++) if (L.seats[i].g===g && R.seats[i]) h+='<div class="sv-cell '+gcls(R.seats[i])+'">'+esc(R.seats[i].name)+'</div>';
       h+='</div></div>';
     }
@@ -1436,14 +1516,14 @@ function showStudentView() {
     h+='<div style="display:inline-grid;gap:8px;grid-template-columns:repeat('+L.cols+',84px)">';
     for (var r=0;r<rows;r++) for (var c=0;c<L.cols;c++) {
       var idx=map[r+'_'+c];
-      h+= (idx===undefined||!R.seats[idx]) ? '<div class="sv-cell emp"></div>' : '<div class="sv-cell '+gcls(R.seats[idx])+'">'+esc(R.seats[idx].name)+'<small>'+(L.seats[idx].g+1)+'모둠</small></div>';
+      h+= (idx===undefined||!R.seats[idx]) ? '<div class="sv-cell emp"></div>' : '<div class="sv-cell '+gcls(R.seats[idx])+'">'+esc(R.seats[idx].name)+'<small>'+esc(gname(L.seats[idx].g))+'</small></div>';
     }
     h+='</div>';
   }
   document.getElementById('sv-body').innerHTML=h;
   var gl='';
   for (g=0;g<R.groups.length;g++) {
-    gl+='<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:13px;font-weight:700;color:var(--text2);min-width:50px">'+(g+1)+'모둠</span>';
+    gl+='<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:13px;font-weight:700;color:var(--text2);min-width:50px">'+esc(gname(g))+'</span>';
     for (var j=0;j<R.groups[g].length;j++) gl+='<span style="padding:4px 10px;border-radius:20px;border:1px solid var(--border2);font-size:13px;font-weight:600;background:var(--white)">'+esc(R.groups[g][j].name)+'</span>';
     gl+='</div>';
   }
@@ -1459,9 +1539,10 @@ function saveRes() {
   var R=curResult, groups=[];
   for (var i=0;i<R.groups.length;i++) { var g=[]; for (var j=0;j<R.groups[i].length;j++) { var s=R.groups[i][j]; g.push({id:s.id,name:s.name,gender:s.gender,level:s.level,note:s.note||''}); } groups.push(g); }
   var seatIds=[]; for (i=0;i<R.seats.length;i++) seatIds.push(R.seats[i]?R.seats[i].id:null);
-  C.history.unshift({ date:R.date, memo:R.memo, tpl:R.tpl, size:R.size, groups:groups, seatIds:seatIds });
+  var gn=[]; for (i=0;i<R.groups.length;i++) gn.push(gname(i));
+  C.history.unshift({ date:R.date, memo:R.memo, tpl:R.tpl, size:R.size, groups:groups, seatIds:seatIds, groupNames:gn });
   if (C.history.length>20) C.history.length=20;
-  R.saved=true; save(); renderHist();
+  R.saved=true; save(); renderHist(); renderRes(true);
   showToast('결과를 저장했어요 ✅ (기록 '+C.history.length+'개)');
 }
 function renderHist() {
@@ -1493,6 +1574,8 @@ function restoreHist(i) {
     var st=byId[ids[s]]; if (!st) { var alt=null; for (a=0;a<e.groups.length;a++) for (b=0;b<e.groups[a].length;b++) if (e.groups[a][b].id===ids[s]) alt=e.groups[a][b]; st=alt; }
     seats.push(st||null); if (st) groups[L.seats[s].g].push(st);
   }
+  if (e.groupNames) { C.groupNames=[]; for (g=0;g<e.groupNames.length;g++) C.groupNames[g] = (e.groupNames[g]===(g+1)+'모둠') ? '' : e.groupNames[g]; save(); }
+  if (swapMode) toggleSwap();
   curResult={ groups:groups, seats:seats, layout:L, tpl:e.tpl||'grid', size:size, memo:e.memo||'', date:e.date, saved:true };
   renderRes(); window.scrollTo(0,0); showToast(fmtDate(e.date)+' 기록을 불러왔어요');
 }
